@@ -1,0 +1,202 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================
+   ExplainMyError — Developer Design System
+   Visual Style: VS Code + GitHub + Modern Developer SaaS
+   Colors: Teal #0F766E accent, Charcoal #18181B, Light #F8FAFC
+   ========================================================= */
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #F8FAFC;
+  color: #1E293B;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+/* Developer Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0F766E;
+}
+
+/* Code Editor Scrollbar */
+.dark-scroll::-webkit-scrollbar-track {
+  background: #18181B;
+}
+.dark-scroll::-webkit-scrollbar-thumb {
+  background: #3F3F46;
+}
+.dark-scroll::-webkit-scrollbar-thumb:hover {
+  background: #0F766E;
+}
+
+/* Selection */
+::selection {
+  background-color: #CCFBF1;
+  color: #0F766E;
+}
+
+/* =========================================================
+   Utility Classes & Component Tokens
+   ========================================================= */
+
+@layer components {
+  /* White Explanation & Content Cards */
+  .card {
+    background-color: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  .card-hover {
+    @apply card transition-colors duration-150 hover:border-slate-300;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+           bg-[#0F766E] hover:bg-[#115E59] active:bg-[#134E4A] text-white font-medium text-sm
+           transition-colors duration-150 focus:outline-none focus:ring-2
+           focus:ring-[#CCFBF1] focus:ring-offset-1
+           disabled:bg-[#94A3B8] disabled:text-[#E2E8F0] disabled:cursor-not-allowed shadow-sm;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+           bg-white hover:bg-slate-50 border border-[#CBD5E1]
+           text-[#1E293B] font-medium text-sm
+           transition-colors duration-150 focus:outline-none focus:ring-2
+           focus:ring-[#CCFBF1] focus:ring-offset-1
+           disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed shadow-sm;
+  }
+
+  .btn-dark {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+           bg-[#18181B] hover:bg-[#27272A] border border-[#3F3F46]
+           text-[#E4E4E7] font-medium text-sm
+           transition-colors duration-150 focus:outline-none focus:ring-2
+           focus:ring-[#0F766E] focus:ring-offset-1
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-md
+           text-[#64748B] hover:text-[#1E293B] hover:bg-slate-100
+           font-medium text-sm transition-colors duration-150;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-md
+           bg-[#FEF2F2] hover:bg-[#FEE2E2] border border-[#FECACA]
+           text-[#DC2626] font-medium text-sm
+           transition-colors duration-150;
+  }
+
+  /* Form Inputs */
+  .input {
+    @apply w-full bg-white border border-[#CBD5E1]
+           rounded-md px-3 py-2 text-sm text-[#1E293B]
+           placeholder-[#94A3B8] focus:outline-none focus:border-[#0F766E]
+           focus:ring-2 focus:ring-[#CCFBF1] transition-colors duration-150
+           disabled:bg-[#F1F5F9] disabled:text-slate-400;
+  }
+
+  .input-dark {
+    @apply w-full bg-[#18181B] border border-[#3F3F46]
+           rounded-md px-3 py-2 text-sm text-[#E4E4E7]
+           placeholder-[#71717A] focus:outline-none focus:border-[#0F766E]
+           focus:ring-1 focus:ring-[#0F766E] transition-colors duration-150;
+  }
+
+  .select {
+    @apply input cursor-pointer appearance-none;
+  }
+
+  .label {
+    @apply block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wide;
+  }
+
+  /* Technology Badges */
+  .tech-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-medium border;
+  }
+  .tech-badge-java {
+    @apply tech-badge bg-[#F1F5F9] text-[#334155] border-[#E2E8F0];
+  }
+  .tech-badge-spring {
+    @apply tech-badge bg-[#F0FDF4] text-[#166534] border-[#BBF7D0];
+  }
+  .tech-badge-python {
+    @apply tech-badge bg-[#F8FAFC] text-[#334155] border-[#CBD5E1];
+  }
+  .tech-badge-js {
+    @apply tech-badge bg-[#FFFBEB] text-[#92400E] border-[#FDE68A];
+  }
+  .tech-badge-default {
+    @apply tech-badge bg-[#F1F5F9] text-[#475569] border-[#E2E8F0];
+  }
+
+  /* Dark Code & IDE Elements */
+  .editor-wrapper {
+    background-color: #18181B;
+    border: 1px solid #3F3F46;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .editor-header {
+    background-color: #27272A;
+    border-bottom: 1px solid #3F3F46;
+    color: #A1A1AA;
+  }
+
+  .editor-content {
+    background-color: #18181B;
+    color: #E4E4E7;
+    font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  }
+
+  /* Section Title */
+  .section-title {
+    @apply text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3
+           flex items-center gap-2;
+  }
+}
+
+/* Monaco Editor Theme Overrides for Dark IDE */
+.monaco-editor .margin {
+  background-color: #18181B !important;
+}
+.monaco-editor-background {
+  background-color: #18181B !important;
+}
+.monaco-editor .line-numbers {
+  color: #71717A !important;
+}

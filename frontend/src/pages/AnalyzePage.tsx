@@ -1,0 +1,569 @@
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { 
+  Terminal, 
+  Loader2, 
+  Upload, 
+  Trash2, 
+  Copy, 
+  Check, 
+  Layers, 
+  AlertTriangle, 
+  FileText, 
+  Compass, 
+  ShieldAlert,
+  HelpCircle,
+  BookOpen,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
+import { analysisService } from '../services/analysisService';
+import { debugSessionService } from '../services/debugSessionService';
+import { AnalysisRequest, AnalysisResponse, LANGUAGES, PROBLEM_TYPES, EXPLANATION_LEVELS } from '../types';
+import { SeverityBadge } from '../components/SeverityBadge';
+import { ConfidenceBar } from '../components/ConfidenceBar';
+import { DiffViewer } from '../components/DiffViewer';
+import { ProbableCausesCard } from '../components/ProbableCausesCard';
+import { DebuggingStepsCard } from '../components/DebuggingStepsCard';
+import { FollowUpChat } from '../components/FollowUpChat';
+import { DemoSelector, DemoSnippet } from '../components/DemoSelector';
+import { useAuth } from '../context/AuthContext';
+
+export const AnalyzePage: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+
+  // Form state
+  const [input, setInput] = useState('');
+  const [language, setLanguage] = useState('AUTO');
+  const [framework, setFramework] = useState('');
+  const [problemType, setProblemType] = useState('Unknown');
+  const [expectedBehavior, setExpectedBehavior] = useState('');
+  const [explanationLevel, setExplanationLevel] = useState<'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED'>('INTERMEDIATE');
+
+  // Execution state
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [activeTab, setActiveTab] = useState<'solution' | 'causes' | 'steps' | 'chat'>('solution');
+  const [copiedExport, setCopiedExport] = useState(false);
+
+  // Check if routed with sample from landing page
+  useEffect(() => {
+    if (location.state?.sample) {
+      loadSample(location.state.sample);
+    }
+  }, [location.state]);
+
+  const loadSample = (sample: DemoSnippet) => {
+    setInput(sample.input);
+    setLanguage(sample.language || 'AUTO');
+    setFramework(sample.framework || '');
+    setProblemType(sample.problemType || 'Unknown');
+    setExpectedBehavior(sample.expectedBehavior || '');
+    setAnalysis(null);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setInput(content);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleAnalyze = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    setIsLoading(true);
+    setErrorMsg(null);
+
+    const payload: AnalysisRequest = {
+      input: input.trim(),
+      language: language === 'AUTO' ? undefined : language,
+      framework: framework.trim() || undefined,
+      problemType: problemType === 'Unknown' ? undefined : problemType,
+      expectedBehavior: expectedBehavior.trim() || undefined,
+      explanationLevel,
+      mode: 'ERROR_ANALYSIS'
+    };
+
+    try {
+      const result = await analysisService.analyze(payload);
+      setAnalysis(result);
+      setActiveTab('solution');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Analysis failed. Please verify that your backend server and Ollama are running.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateSession = async () => {
+    if (!analysis) return;
+    try {
+      const session = await debugSessionService.create({
+        title: `Debug: ${analysis.errorName || analysis.language || 'Issue'}`,
+        initialAnalysisId: analysis.id
+      });
+      navigate(`/sessions?id=${session.id}`);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to start debug session. Please sign in first.');
+    }
+  };
+
+  const handleExportMarkdown = () => {
+    if (!analysis) return;
+    const md = `# Error Analysis: ${analysis.errorName || 'Diagnosis'}
+Language: ${analysis.language} | Framework: ${analysis.framework || 'N/A'} | Severity: ${analysis.severity}
+
+## 1. What Happened
+${analysis.whatHappened}
+
+## 2. Why Did It Happen
+${analysis.whyItHappened}
+
+## 3. Root Cause
+${analysis.rootCause}
+
+## 4. Recommended Solution
+${analysis.suggestedFix?.explanation || ''}
+
+\`\`\`
+${analysis.suggestedFix?.fixedCode || ''}
+\`\`\`
+
+## 5. Prevention Tips
+${analysis.prevention || ''}
+
+## 6. Debugging Steps
+${analysis.debuggingSteps?.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+---
+Generated by ExplainMyError`;
+
+    navigator.clipboard.writeText(md);
+    setCopiedExport(true);
+    setTimeout(() => setCopiedExport(false), 2000);
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E2E8F0]">
+        <div>
+          <h1 className="text-xl font-bold text-[#1E293B] flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-[#0F766E]" />
+            Error & Log Analyzer
+          </h1>
+          <p className="text-xs text-[#64748B] mt-1">
+            Paste error messages, stack traces, compiler logs, or failing code for root-cause analysis and drop-in fixes.
+          </p>
+        </div>
+
+        {/* Explanation Depth Segmented Control */}
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <span className="text-xs text-[#64748B] font-medium">Depth:</span>
+          <div className="inline-flex rounded-md bg-[#E2E8F0] p-0.5 border border-[#CBD5E1]">
+            {EXPLANATION_LEVELS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => setExplanationLevel(level as any)}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                  explanationLevel === level
+                    ? 'bg-white text-[#1E293B] shadow-sm font-semibold'
+                    : 'text-[#64748B] hover:text-[#1E293B]'
+                }`}
+              >
+                {level.charAt(0) + level.slice(1).toLowerCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Demo Selector Strip */}
+      <DemoSelector onSelect={loadSample} />
+
+      {/* Main Analysis Input Form */}
+      <form onSubmit={handleAnalyze} className="space-y-4">
+        <div className="editor-wrapper shadow-sm">
+          
+          {/* Editor Header Toolbar */}
+          <div className="editor-header px-3.5 py-2 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              
+              {/* Language Selection */}
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="bg-[#18181B] border border-[#3F3F46] rounded-md px-2.5 py-1 text-xs text-[#E4E4E7] font-medium focus:outline-none focus:border-[#0F766E]"
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang === 'AUTO' ? 'Auto-Detect Language' : lang}
+                  </option>
+                ))}
+              </select>
+
+              {/* Framework Input */}
+              <input
+                type="text"
+                value={framework}
+                onChange={(e) => setFramework(e.target.value)}
+                placeholder="Framework (e.g. Spring, React, FastAPI)"
+                className="bg-[#18181B] border border-[#3F3F46] rounded-md px-2.5 py-1 text-xs text-[#E4E4E7] placeholder-[#71717A] focus:outline-none focus:border-[#0F766E] w-48"
+              />
+
+              {/* Problem Type Selection */}
+              <select
+                value={problemType}
+                onChange={(e) => setProblemType(e.target.value)}
+                className="bg-[#18181B] border border-[#3F3F46] rounded-md px-2.5 py-1 text-xs text-[#E4E4E7] font-medium focus:outline-none focus:border-[#0F766E]"
+              >
+                {PROBLEM_TYPES.map((pt) => (
+                  <option key={pt} value={pt}>
+                    {pt === 'Unknown' ? 'Category: Auto-Detect' : pt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Utility actions */}
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer flex items-center gap-1.5 text-xs font-mono text-[#A1A1AA] hover:text-[#E4E4E7] px-2.5 py-1 rounded-md bg-[#18181B] border border-[#3F3F46] hover:bg-[#27272A] transition-colors">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Upload File</span>
+                <input type="file" onChange={handleFileUpload} className="hidden" accept=".txt,.log,.java,.py,.js,.ts,.rs,.go,.cpp,.c,.cs,.sql,.json,.html" />
+              </label>
+
+              {input && (
+                <button
+                  type="button"
+                  onClick={() => setInput('')}
+                  className="p-1 rounded text-[#A1A1AA] hover:text-[#DC2626] transition-colors"
+                  title="Clear input"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Dark IDE Editor Textarea */}
+          <div className="relative bg-[#18181B]">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="// Paste your stack trace, compiler error, runtime crash, or buggy code snippet here..."
+              rows={10}
+              className="w-full bg-[#18181B] p-4 font-mono text-xs text-[#E4E4E7] placeholder-[#71717A] focus:outline-none resize-y border-none leading-relaxed dark-scroll"
+              required
+            />
+          </div>
+
+          {/* Context / Expected Behavior Bar */}
+          <div className="px-3.5 py-2 bg-[#202023] border-t border-[#3F3F46]">
+            <input
+              type="text"
+              value={expectedBehavior}
+              onChange={(e) => setExpectedBehavior(e.target.value)}
+              placeholder="Expected behavior (optional context, e.g. 'Should parse date without throwing NullPointerException')"
+              className="w-full bg-transparent text-xs text-[#E4E4E7] placeholder-[#71717A] focus:outline-none"
+            />
+          </div>
+
+          {/* Bottom Submit Toolbar */}
+          <div className="px-3.5 py-2.5 bg-[#27272A] border-t border-[#3F3F46] flex items-center justify-between">
+            <span className="text-[11px] text-[#A1A1AA] font-mono">
+              {input.length > 0 ? `${input.length} chars` : 'Ready for input'}
+            </span>
+
+            {/* Solid Teal Primary Button */}
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              className="btn-primary"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Analyzing...</span>
+                </>
+              ) : (
+                <>
+                  <Terminal className="w-4 h-4" />
+                  <span>Explain Error</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* Error Alert Message */}
+      {errorMsg && (
+        <div className="p-3.5 rounded-md bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-xs flex items-center gap-2.5 shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-[#DC2626] shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Diagnosis Results Section */}
+      {analysis && (
+        <div className="space-y-6 pt-2">
+          
+          {/* Header Summary Card */}
+          <div className="card p-5 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-[#E2E8F0]">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-[#F1F5F9] text-[#334155] border border-[#E2E8F0]">
+                    {analysis.language || 'Detected Stack'}
+                  </span>
+                  {analysis.framework && (
+                    <span className="px-2 py-0.5 rounded text-xs font-mono font-medium bg-[#F8FAFC] text-[#475569] border border-[#E2E8F0]">
+                      {analysis.framework}
+                    </span>
+                  )}
+                  {analysis.problemType && (
+                    <span className="px-2 py-0.5 rounded text-xs font-mono font-medium bg-[#F8FAFC] text-[#475569] border border-[#E2E8F0]">
+                      {analysis.problemType}
+                    </span>
+                  )}
+                  <SeverityBadge severity={analysis.severity} />
+                </div>
+                <h2 className="text-lg font-bold text-[#1E293B]">
+                  {analysis.errorName || 'Error Diagnosed'}
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <ConfidenceBar confidence={analysis.confidence} />
+
+                <button
+                  type="button"
+                  onClick={handleExportMarkdown}
+                  className="btn-secondary text-xs px-2.5 py-1.5"
+                  title="Copy markdown report"
+                >
+                  {copiedExport ? <Check className="w-3.5 h-3.5 text-[#15803D]" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedExport ? 'Copied' : 'Export MD'}</span>
+                </button>
+
+                {isAuthenticated && (
+                  <button
+                    type="button"
+                    onClick={handleCreateSession}
+                    className="btn-secondary text-xs px-2.5 py-1.5"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-[#0F766E]" />
+                    <span>Track in Session</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Pinpointed Location if found */}
+            {analysis.errorLocation && (
+              <div className="p-2.5 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] flex flex-wrap items-center gap-3 text-xs font-mono">
+                <span className="text-[#64748B] font-semibold">Location Pinpointed:</span>
+                {analysis.errorLocation.file && (
+                  <span className="text-[#0F766E] font-medium">File: {analysis.errorLocation.file}</span>
+                )}
+                {analysis.errorLocation.line && (
+                  <span className="text-[#0F766E] font-medium">Line: {analysis.errorLocation.line}</span>
+                )}
+                {analysis.errorLocation.description && (
+                  <span className="text-[#1E293B] font-sans">{analysis.errorLocation.description}</span>
+                )}
+              </div>
+            )}
+
+            {/* Core Explanation Cards: What & Why (Consistent White Cards) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Card 1: What Happened? */}
+              <div className="p-4 rounded-md border border-[#E2E8F0] bg-white space-y-1.5 hover:border-[#CBD5E1] transition-colors">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-[#1E293B] flex items-center gap-1.5">
+                  <Compass className="w-3.5 h-3.5 text-[#0F766E]" />
+                  1. What Happened
+                </h4>
+                <p className="text-xs text-[#64748B] leading-relaxed">
+                  {analysis.whatHappened}
+                </p>
+              </div>
+
+              {/* Card 2: Why Did It Happen? */}
+              <div className="p-4 rounded-md border border-[#E2E8F0] bg-white space-y-1.5 hover:border-[#CBD5E1] transition-colors">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-[#1E293B] flex items-center gap-1.5">
+                  <HelpCircle className="w-3.5 h-3.5 text-[#0F766E]" />
+                  2. Why Did It Happen
+                </h4>
+                <p className="text-xs text-[#64748B] leading-relaxed">
+                  {analysis.whyItHappened}
+                </p>
+              </div>
+            </div>
+
+            {/* Root Cause Callout - Semantic Red */}
+            {analysis.rootCause && (
+              <div className="p-3.5 rounded-md bg-[#FEF2F2] border border-[#FECACA] text-xs">
+                <span className="font-semibold text-[#B91C1C] flex items-center gap-1.5 mb-1">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
+                  Root Cause Pinpoint
+                </span>
+                <p className="text-[#B91C1C] leading-relaxed">{analysis.rootCause}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className="space-y-4">
+            <div className="flex border-b border-[#E2E8F0] gap-1">
+              
+              <button
+                type="button"
+                onClick={() => setActiveTab('solution')}
+                className={`pb-2.5 px-3.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+                  activeTab === 'solution'
+                    ? 'border-[#0F766E] text-[#0F766E]'
+                    : 'border-transparent text-[#64748B] hover:text-[#1E293B]'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>3. Fix & Corrected Code</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('causes')}
+                className={`pb-2.5 px-3.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+                  activeTab === 'causes'
+                    ? 'border-[#0F766E] text-[#0F766E]'
+                    : 'border-transparent text-[#64748B] hover:text-[#1E293B]'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Probable Causes ({analysis.probableCauses?.length || 0})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('steps')}
+                className={`pb-2.5 px-3.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+                  activeTab === 'steps'
+                    ? 'border-[#0F766E] text-[#0F766E]'
+                    : 'border-transparent text-[#64748B] hover:text-[#1E293B]'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Debugging Checklist ({analysis.debuggingSteps?.length || 0})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('chat')}
+                className={`pb-2.5 px-3.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+                  activeTab === 'chat'
+                    ? 'border-[#0F766E] text-[#0F766E]'
+                    : 'border-transparent text-[#64748B] hover:text-[#1E293B]'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Contextual Chat</span>
+              </button>
+            </div>
+
+            {/* Tab: Solution & Diff */}
+            {activeTab === 'solution' && (
+              <div className="space-y-4">
+                
+                {/* How to Fix Card */}
+                <div className="card p-5 space-y-4">
+                  <div className="pb-3 border-b border-[#E2E8F0]">
+                    <h3 className="text-sm font-semibold text-[#1E293B] flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-[#0F766E]" />
+                      Recommended Fix Explanation
+                    </h3>
+                    <p className="text-xs text-[#64748B] mt-1 leading-relaxed">
+                      {analysis.suggestedFix?.explanation}
+                    </p>
+                  </div>
+
+                  {/* Dark IDE Diff Viewer */}
+                  <DiffViewer
+                    originalCode={analysis.suggestedFix?.originalCode}
+                    fixedCode={analysis.suggestedFix?.fixedCode}
+                    whyItWorks={analysis.suggestedFix?.whyItWorks}
+                    language={analysis.language}
+                  />
+                </div>
+
+                {/* Alternative Approaches Card */}
+                {analysis.alternativeFixes && analysis.alternativeFixes.length > 0 && (
+                  <div className="card p-5 space-y-3">
+                    <h4 className="text-xs font-semibold text-[#1E293B] uppercase tracking-wider">
+                      Alternative Fixes & Workarounds
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {analysis.alternativeFixes.map((alt, i) => (
+                        <div key={i} className="p-3 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white border border-[#CBD5E1] text-[#334155] uppercase">
+                            {alt.fixType}
+                          </span>
+                          <p className="text-xs text-[#64748B] leading-relaxed mt-1">
+                            {alt.description}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Prevention Tips Card */}
+                {analysis.prevention && (
+                  <div className="card p-5 space-y-2">
+                    <h4 className="text-xs font-semibold text-[#1E293B] flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-[#0F766E]" />
+                      Prevention Tips & Architecture Best Practices
+                    </h4>
+                    <p className="text-xs text-[#64748B] leading-relaxed">
+                      {analysis.prevention}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab: Causes */}
+            {activeTab === 'causes' && (
+              <ProbableCausesCard causes={analysis.probableCauses} />
+            )}
+
+            {/* Tab: Steps Checklist */}
+            {activeTab === 'steps' && (
+              <DebuggingStepsCard steps={analysis.debuggingSteps} />
+            )}
+
+            {/* Tab: Follow-up Chat */}
+            {activeTab === 'chat' && (
+              <FollowUpChat analysisId={analysis.id} />
+            )}
+
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
